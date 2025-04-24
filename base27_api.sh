@@ -8,7 +8,7 @@
 api_name="base27_api"
 api_base="rest/v2"
 
-expiration_file="$HOME/.${api_name}_token.json"
+expiration_file="./.${api_name}_token.json"
 config_file="./${api_name}_conf.env"
 
 function generate_config_file {

@@ -68,8 +68,11 @@ function do_config {
 
     if [[ ${#missing_vars[@]} -ne 0 ]]; then
         echo "Missing required variables: ${missing_vars[*]}"
-        echo "Plese fill in $config_file"
+        echo "Please fill in $config_file"
         exit 1
+    fi
+    if [[ $1 == "validate" ]]; then
+        echo "$config_file is valid"
     fi
 }
 
@@ -311,12 +314,12 @@ endpoints=(
 
 print_format() {
     local width1="41"
-    local width2="30"
+    local width2="29"
     printf "  %-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
 
 print_sub() {
-    local width1="13"
+    local width1="14"
     local width2="10"
     printf "%-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
@@ -337,7 +340,7 @@ function do_http {
     done
 
     do_endpoint "$method" "$endpoint" "${query_params[@]}"
-    exit 0
+    exit
 }
 
 function do_case {
@@ -357,7 +360,8 @@ function do_case {
             if [[ -z "$f1" ]]; then 
                 print_format "-c" "Generate / validate config" ""
             else
-                do_config
+                do_config "validate"
+                exit
             fi
             ;&
         --use-form-encoding | "")
@@ -366,111 +370,6 @@ function do_case {
                 echo ""
             else
                 flag_form_encoding=true
-            fi
-            ;&
-        --list-endpoints | "")
-            if [[ -z "$f1" ]]; then 
-                print_format "--list-endpoints" "List all API endpoints" "text"
-                echo ""
-            else
-                for ep in "${endpoints[@]}"; do
-                    echo "  $ep"
-                done
-                exit 0
-            fi
-            ;&
-        --list-metadata-entities | "")
-            if [[ -z "$f1" ]]; then 
-                print_format "--list-metadata-entities" "List all metadata/entities" "text"
-            else
-                do_endpoint "GET" "metadata/entities" "entityName"
-                exit 0
-            fi
-            ;&
-        --list-metadata-enums | "")
-            if [[ -z "$f1" ]]; then 
-                print_format "--list-metadata-enums" "List all metadata/enums" "text"
-            else
-                do_endpoint "GET" "metadata/enums" "name"
-                exit 0
-            fi
-            ;&
-        --list-metadata-datatypes | "")
-            if [[ -z "$f1" ]]; then 
-                print_format "--list-metadata-datatypes" "List all metadata/datatypes" "text"
-            else
-                do_endpoint "GET" "metadata/datatypes" "name"
-                exit 0
-            fi
-            ;&
-        --list-messages-entities | "")
-            if [[ -z "$f1" ]]; then 
-                print_format "--list-messages-entities" "List all messages/entities" "text"
-            else
-                do_endpoint "GET" "messages/entities" "keys[]"
-                exit 0
-            fi
-            ;&
-        --list-messages-enums | "")
-            if [[ -z "$f1" ]]; then 
-                print_format "--list-messages-enums" "List all messages/enums" "text"
-            else
-                do_endpoint "GET" "messages/enums"  "keys[]"
-                exit 0
-            fi
-            ;&
-        --list-services | "")
-            if [[ -z "$f1" ]]; then
-                print_format "--list-services" "List all services" "text"
-            else
-                do_endpoint "GET" "services" "name"
-                exit 0
-            fi
-            ;&
-        --list-userinfo | "")
-            if [[ -z "$f1" ]]; then
-                print_format "--list-userinfo" "List userinfo" "text"
-                echo ""
-            else
-                do_endpoint "GET" "userInfo"            
-                exit 0
-            fi
-            ;&
-        -e | --entity | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-e | --entity" "'<name>'")" "List contents of entity name" "JSON"
-            else
-                if [[ -z "$2" ]]; then
-                    echo "Error, --entity requires an additional argument"
-                    exit 1
-                fi
-                do_endpoint "GET" "entities/${2}"
-                exit 0
-            fi
-            ;&
-        -s | --service | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-s | --service" "'<name>'")" "List contents of service name" "JSON"
-            else
-                if [[ -z "$2" ]]; then
-                    echo "Error: requires a name"
-                    exit 1
-                fi
-                do_endpoint "GET" "services/${2}"
-                exit 0
-            fi
-            ;&
-        -f | --file | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-f | --file" "'<id>'")" "List contents of file id" "JSON"
-                    echo ""
-            else
-                if [[ -z "$2" ]]; then
-                    echo "Error, --file requires an additional argument"
-                    exit 1
-                fi
-                do_endpoint "GET" "files/${2}"
-                exit 0
             fi
             ;&
         -g | --get | "")
@@ -500,15 +399,120 @@ function do_case {
         -d | --delete | "")
             if [[ -z "$f1" ]]; then
                 print_format "$(print_sub "-d | --delete" "<endpoint>" "[key=value ...]")" "DELETE to an endpoint" "JSON"
+                echo ""
             else
                 shift
                 do_http "DELETE" "$@"
+            fi
+            ;&
+        -e | --entity | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-e | --entity" "'<name>'")" "List contents of entity name" "JSON"
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error, --entity requires an additional argument"
+                    exit 1
+                fi
+                do_endpoint "GET" "entities/${2}"
+                exit
+            fi
+            ;&
+        -s | --service | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-s | --service" "'<name>'")" "List contents of service name" "JSON"
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error: requires a name"
+                    exit 1
+                fi
+                do_endpoint "GET" "services/${2}"
+                exit
+            fi
+            ;&
+        -f | --file | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-f | --file" "'<id>'")" "List contents of file id" "JSON"
+                echo ""
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error, --file requires an additional argument"
+                    exit 1
+                fi
+                do_endpoint "GET" "files/${2}"
+                exit
+            fi
+            ;&
+        --list-endpoints | "")
+            if [[ -z "$f1" ]]; then 
+                print_format "--list-endpoints" "List all API endpoints" "text"
+            else
+                for ep in "${endpoints[@]}"; do
+                    echo "  $ep"
+                done
+                exit
+            fi
+            ;&
+        --list-metadata-entities | "")
+            if [[ -z "$f1" ]]; then 
+                print_format "--list-metadata-entities" "List all metadata/entities" "text"
+            else
+                do_endpoint "GET" "metadata/entities" "entityName"
+                exit
+            fi
+            ;&
+        --list-metadata-enums | "")
+            if [[ -z "$f1" ]]; then 
+                print_format "--list-metadata-enums" "List all metadata/enums" "text"
+            else
+                do_endpoint "GET" "metadata/enums" "name"
+                exit
+            fi
+            ;&
+        --list-metadata-datatypes | "")
+            if [[ -z "$f1" ]]; then 
+                print_format "--list-metadata-datatypes" "List all metadata/datatypes" "text"
+            else
+                do_endpoint "GET" "metadata/datatypes" "name"
+                exit
+            fi
+            ;&
+        --list-messages-entities | "")
+            if [[ -z "$f1" ]]; then 
+                print_format "--list-messages-entities" "List all messages/entities" "text"
+            else
+                do_endpoint "GET" "messages/entities" "keys[]"
+                exit
+            fi
+            ;&
+        --list-messages-enums | "")
+            if [[ -z "$f1" ]]; then 
+                print_format "--list-messages-enums" "List all messages/enums" "text"
+            else
+                do_endpoint "GET" "messages/enums"  "keys[]"
+                exit
+            fi
+            ;&
+        --list-services | "")
+            if [[ -z "$f1" ]]; then
+                print_format "--list-services" "List all services" "text"
+            else
+                do_endpoint "GET" "services" "name"
+                exit
+            fi
+            ;&
+        --list-userinfo | "")
+            if [[ -z "$f1" ]]; then
+                print_format "--list-userinfo" "List userinfo" "text"
+                echo ""
+            else
+                do_endpoint "GET" "userInfo"            
+                exit
             fi
             ;;
         *)
             echo -e "Error: unknown option: $1\n"
             do_case
-            ;;
+            ;&
     esac
 }
 
@@ -518,7 +522,7 @@ while [[ "$1" == -* ]]; do
     case "$1" in
         -c)
             do_case --validate-config
-            exit 0
+            exit
             ;;
         -u)
             do_case --use-form-encoding
@@ -526,7 +530,7 @@ while [[ "$1" == -* ]]; do
             ;;
         -h|--help)
             do_case --help
-            exit 0
+            exit
             ;;
         --) # end of options
             shift

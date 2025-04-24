@@ -66,7 +66,6 @@ function get_api_token {
     expires_in=$(echo "$response" | jq -r '.expires_in')
     expiration_time=$((timestamp + expires_in))
 
-    # Combine response and expiration time into one JSON
     echo "$response" | jq --argjson timestamp "$timestamp" --argjson expiration_time "$expiration_time" \
         '. + {timestamp: $timestamp, expiration_time: $expiration_time}' > "$expiration_file"
 
@@ -92,7 +91,6 @@ function get_access_token {
 
 function do_init {
 	do_config
-	# check if token exists, otherwise fetch it
 	if [ ! -f "$expiration_file" ]; then
 		echo "no token file found, fetching new token..."
 		get_api_token

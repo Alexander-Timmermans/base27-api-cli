@@ -3,12 +3,12 @@ Base27 API CLI (CUBA Platform / Jmix naming convention)
 This is a third party CLI tool, based on the [online documentation](https://community.base27.eu/doc/rest/).
 
 ```
-Usage: ./base27_api.sh [option]
+Usage: ./base27_api.sh [options]
   Options:                              Description:                   Output-type:
+  -c                                    Generate / validate config
   -e                                    Use form encoding              
 
   --list-endpoints                      List all API endpoints         text
-
   --list-metadata-entities              List all metadata/entities     text
   --list-metadata-enums                 List all metadata/enums        text
   --list-metadata-datatypes             List all metadata/datatypes    text
@@ -26,5 +26,5 @@ Usage: ./base27_api.sh [option]
   --put     <endpoint> [key=value ...]  PUT to an endpoint             JSON
   --delete  <endpoint> [key=value ...]  DELETE to an endpoint          JSON
 ```
-e.g. ``./base27_api.sh --get metadata/entities id=123``
+e.g. `./base27_api.sh --get metadata/entities id=123`
 

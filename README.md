@@ -26,5 +26,5 @@ Usage: ./base27_api.sh [option]
   --put     <endpoint> [key=value ...]  PUT to an endpoint             JSON
   --delete  <endpoint> [key=value ...]  DELETE to an endpoint          JSON
 ```
-
+e.g. ``./base27_api.sh --get metadata/entities id=123``
 

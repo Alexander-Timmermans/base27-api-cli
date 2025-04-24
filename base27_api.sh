@@ -144,20 +144,17 @@ function do_endpoint {
             if $flag_form_encoding; then
                 headers+=(-H "Content-Type: application/x-www-form-urlencoded")
 
-                # Convert filter string to form fields if it contains key=value pairs
                 if $flag_filter_query; then
                     IFS=' ' read -r -a pairs <<< "$filter"
                     for pair in "${pairs[@]}"; do
                         data_option+=(--data-urlencode "$pair")
                     done
                 else
-                    # default
                     data_option+=(--data-urlencode "$filter")
                 fi
             else
                 headers+=(-H "Content-Type: application/json")
 
-                # Convert key=value to JSON (basic)
                 if $flag_filter_query; then
                     IFS=' ' read -r -a pairs <<< "$filter"
                     json_payload="{"
@@ -169,7 +166,6 @@ function do_endpoint {
                     json_payload="${json_payload%,}}"  # Remove trailing comma + close
                     data_option=(--data-raw "$json_payload")
                 else
-                    # default
                     data_option=(--data-raw '{}')  
                 fi
             fi
@@ -181,23 +177,24 @@ function do_endpoint {
 
 
     local curl_method_args=()
+
+    # GET doesn't need -X
     case "$method" in
         DELETE) curl_method_args=(-X DELETE) ;;
         POST)   curl_method_args=(-X POST) ;;
         PUT)    curl_method_args=(-X PUT) ;;
-        # GET doesn't need -X
     esac
 
     response=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" --location "$url" \
         "${headers[@]}" "${data_option[@]}" "${curl_method_args[@]}")
 
 
-    # rewrite
     #http_status=$(echo "$response" | sed -e 's/.*HTTPSTATUS://')
+    # rewrite without sed
     http_status="${response##*HTTPSTATUS:}"
 
-    # rewrite
     #body_content=$(echo "$response" | sed -e 's/HTTPSTATUS:.*//')
+    # rewrite without sed
     body_content="${response%HTTPSTATUS:*}"
 
 
@@ -327,26 +324,8 @@ function do_http {
     exit 0
 }
 
+
 flag_form_encoding=false
-while [[ "$1" == -* ]]; do
-    case "$1" in
-        -e)
-            flag_form_encoding=true
-            shift
-            ;;
-        -h|--help)
-            do_case --help
-            exit 0
-            ;;
-        --) # end of options
-            shift
-            break
-            ;;
-        *)
-            break # pass remaining args to do_case
-            ;;
-    esac
-done
 
 function do_case {
     if [[ "$1" == "--help" ]]; then
@@ -358,12 +337,24 @@ function do_case {
         --help | "")
             if [[ $script_arg_count -lt 1 ]]; then
                 echo "Base27 API CLI tool"
-                echo "Usage: $0 [option]"
+                echo "Usage: $0 [options]"
             fi
             print_format "Options:" "Description:" "Output-type:"
-            #print_format "-h|--help" "Print this help" ""
-            print_format "-e" "Use form encoding" ""
-            echo ""
+            ;&
+        --validate-config | "")
+            if [[ -z "$f1" ]]; then 
+                print_format "-c" "Generate / validate config" ""
+            else
+                do_config
+            fi
+            ;&
+        --use-form-encoding | "")
+            if [[ -z "$f1" ]]; then 
+                print_format "-e" "Use form encoding" ""
+                echo ""
+            else
+                flag_form_encoding=true
+            fi
             ;&
         --list-endpoints | "")
             if [[ -z "$f1" ]]; then 
@@ -504,6 +495,30 @@ function do_case {
             ;;
     esac
 }
+
+while [[ "$1" == -* ]]; do
+    case "$1" in
+        -c)
+            do_case --validate-config
+            exit 0
+            ;;
+        -e)
+            do_case --use-form-encoding
+            shift
+            ;;
+        -h|--help)
+            do_case --help
+            exit 0
+            ;;
+        --) # end of options
+            shift
+            break
+            ;;
+        *)
+            break # pass remaining args to do_case
+            ;;
+    esac
+done
 
 script_arg_count=$#
 do_case "$@"

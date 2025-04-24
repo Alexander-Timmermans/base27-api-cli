@@ -11,6 +11,27 @@ api_base="rest/v2"
 expiration_file="./.${api_name}_token.json"
 config_file="./${api_name}_conf.env"
 
+readonly REQUIREMENTS=(\
+    awk \
+    bash \
+    cat \
+    chmod \
+    file \
+    grep \
+    jq \
+    printf \
+    sed \
+)
+
+function requires() {
+    for i in "$@"; do
+        if ! hash "$i" &>/dev/null; then
+            echo "Error: this program requires '$i', please install it"
+            quit
+        fi
+    done
+}
+
 function generate_config_file {
     if [[ ! -f "$config_file" ]]; then
         cat <<EOF > "$config_file"
@@ -35,7 +56,7 @@ function do_config {
         exit 1
     fi
 
-    missing_vars=()
+    local missing_vars=()
     if [[ -z "$base_url" || "$base_url" == "https://" ]]; then
         echo "base_url is not set correctly. Please update $config_file"
         exit 1
@@ -53,18 +74,18 @@ function do_config {
 }
 
 function get_api_token {
-    basic_auth=$(echo -n "$client_id:$client_secret" | base64)
+    local basic_auth=$(echo -n "$client_id:$client_secret" | base64)
 
-    response=$(curl --silent --location "${base_url}/${api_base}/oauth/token" \
+    local response=$(curl --silent --location "${base_url}/${api_base}/oauth/token" \
         --header "Content-Type: application/x-www-form-urlencoded" \
         --header "Authorization: Basic $basic_auth" \
         --data-urlencode 'grant_type=password' \
         --data-urlencode "username=$username" \
         --data-urlencode "password=$password")
 
-    timestamp=$(date +%s)
-    expires_in=$(echo "$response" | jq -r '.expires_in')
-    expiration_time=$((timestamp + expires_in))
+    local timestamp=$(date +%s)
+    local expires_in=$(echo "$response" | jq -r '.expires_in')
+    local expiration_time=$((timestamp + expires_in))
 
     echo "$response" | jq --argjson timestamp "$timestamp" --argjson expiration_time "$expiration_time" \
         '. + {timestamp: $timestamp, expiration_time: $expiration_time}' > "$expiration_file"
@@ -73,8 +94,8 @@ function get_api_token {
 }
 
 function check_token_validity {
-    current_time=$(date +%s)
-    expiration_time=$(jq -r '.expiration_time' "$expiration_file")
+    local current_time=$(date +%s)
+    local expiration_time=$(jq -r '.expiration_time' "$expiration_file")
 
     if (( current_time > expiration_time )); then
         echo "token has expired, fetching a new one.."
@@ -85,12 +106,14 @@ function check_token_validity {
 }
 
 function get_access_token {
-    access_token=$(jq -r '.access_token' "$expiration_file")
+    local access_token=$(jq -r '.access_token' "$expiration_file")
     echo "$access_token"
 }
 
 function do_init {
+    requires "${REQUIREMENTS[@]}"
     do_config
+    flag_form_encoding=false
     if [ ! -f "$expiration_file" ]; then
         echo "no token file found, fetching new token..."
         get_api_token
@@ -157,7 +180,7 @@ function do_endpoint {
 
                 if $flag_filter_query; then
                     IFS=' ' read -r -a pairs <<< "$filter"
-                    json_payload="{"
+                    local json_payload="{"
                     for pair in "${pairs[@]}"; do
                         key="${pair%%=*}"
                         val="${pair#*=}"
@@ -175,7 +198,6 @@ function do_endpoint {
         fi
     fi
 
-
     local curl_method_args=()
 
     # GET doesn't need -X
@@ -185,7 +207,7 @@ function do_endpoint {
         PUT)    curl_method_args=(-X PUT) ;;
     esac
 
-    response=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" --location "$url" \
+    local response=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" --location "$url" \
         "${headers[@]}" "${data_option[@]}" "${curl_method_args[@]}")
 
     #http_status=$(echo "$response" | sed -e 's/.*HTTPSTATUS://')
@@ -195,7 +217,6 @@ function do_endpoint {
     #body_content=$(echo "$response" | sed -e 's/HTTPSTATUS:.*//')
     # rewrite without sed
     body_content="${response%HTTPSTATUS:*}"
-
 
     echo "${method} ${endpoint}:"
     echo "HTTP status: $http_status"
@@ -229,7 +250,7 @@ function do_endpoint {
             if echo "$response" | grep -q 'VAADI'; then
                 echo "Not a valid API response"
             else
-                if [[ ! -z $filter ]]; then
+                if [[ -n $filter ]]; then
                     if $flag_filter_query; then
                         if [[ "$filter" == *"[]"* ]]; then
                             echo "$body_content" | jq -r "$filter"
@@ -248,11 +269,9 @@ function do_endpoint {
             echo "response:$response"
             ;;
     esac
-
 }
 
 endpoints=(
-    ""
     "Lists:"
     ""
     "GET    metadata/entities"
@@ -262,7 +281,6 @@ endpoints=(
     "GET    messages/enums"
     "GET    services"
     "GET    userInfo"
-    ""
     ""
     "Objects:"
     ""
@@ -292,13 +310,13 @@ endpoints=(
 
 
 print_format() {
-    local width1="37"
+    local width1="41"
     local width2="30"
     printf "  %-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
 
 print_sub() {
-    local width1="9"
+    local width1="13"
     local width2="10"
     printf "%-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
@@ -313,7 +331,7 @@ function do_http {
         exit 1
     fi
 
-    query_params=()
+    local query_params=()
     for arg in "$@"; do
         query_params+=("$arg")
     done
@@ -322,13 +340,9 @@ function do_http {
     exit 0
 }
 
-
-flag_form_encoding=false
-
 function do_case {
-    if [[ "$1" == "--help" ]]; then
-        f1=""
-    else
+    local f1=""
+    if [[ "$1" != "--help" ]]; then
         f1="$1"
     fi
     case "$f1" in
@@ -348,7 +362,7 @@ function do_case {
             ;&
         --use-form-encoding | "")
             if [[ -z "$f1" ]]; then 
-                print_format "-e" "Use form encoding" ""
+                print_format "-u" "Use form encoding" ""
                 echo ""
             else
                 flag_form_encoding=true
@@ -422,9 +436,9 @@ function do_case {
                 exit 0
             fi
             ;&
-        --entity | "")
+        -e | --entity | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "--entity" "'<name>'")" "List contents of entity name" "JSON"
+                print_format "$(print_sub "-e | --entity" "'<name>'")" "List contents of entity name" "JSON"
             else
                 if [[ -z "$2" ]]; then
                     echo "Error, --entity requires an additional argument"
@@ -434,9 +448,9 @@ function do_case {
                 exit 0
             fi
             ;&
-        --service | "")
+        -s | --service | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "--service" "'<name>'")" "List contents of service name" "JSON"
+                print_format "$(print_sub "-s | --service" "'<name>'")" "List contents of service name" "JSON"
             else
                 if [[ -z "$2" ]]; then
                     echo "Error: requires a name"
@@ -446,9 +460,9 @@ function do_case {
                 exit 0
             fi
             ;&
-        --file | "")
+        -f | --file | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "--file" "'<id>'")" "List contents of file id" "JSON"
+                print_format "$(print_sub "-f | --file" "'<id>'")" "List contents of file id" "JSON"
                     echo ""
             else
                 if [[ -z "$2" ]]; then
@@ -459,33 +473,33 @@ function do_case {
                 exit 0
             fi
             ;&
-        --get | "")
+        -g | --get | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "--get" "<endpoint>" "[key=value ...]")" "GET an endpoint" "JSON"
+                print_format "$(print_sub "-g | --get" "<endpoint>" "[key=value ...]")" "GET an endpoint" "JSON"
             else
                 shift  
                 do_http "GET" "$@"
             fi
             ;&
-        --post | "")
+        -p | --post | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "--post" "<endpoint>" "[key=value ...]")" "POST to an endpoint" "JSON"
+                print_format "$(print_sub "-p | --post" "<endpoint>" "[key=value ...]")" "POST to an endpoint" "JSON"
             else
                 shift
                 do_http "POST" "$@"
             fi
             ;&
-        --put | "")
+        -t | --put | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "--put" "<endpoint>" "[key=value ...]")" "PUT to an endpoint" "JSON"
+                print_format "$(print_sub "-t | --put" "<endpoint>" "[key=value ...]")" "PUT to an endpoint" "JSON"
             else
                 shift
                 do_http "PUT" "$@"
             fi
             ;&
-        --delete | "")
+        -d | --delete | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "--delete" "<endpoint>" "[key=value ...]")" "DELETE to an endpoint" "JSON"
+                print_format "$(print_sub "-d | --delete" "<endpoint>" "[key=value ...]")" "DELETE to an endpoint" "JSON"
             else
                 shift
                 do_http "DELETE" "$@"
@@ -498,13 +512,15 @@ function do_case {
     esac
 }
 
+script_arg_count=$#
+
 while [[ "$1" == -* ]]; do
     case "$1" in
         -c)
             do_case --validate-config
             exit 0
             ;;
-        -e)
+        -u)
             do_case --use-form-encoding
             shift
             ;;
@@ -522,5 +538,4 @@ while [[ "$1" == -* ]]; do
     esac
 done
 
-script_arg_count=$#
 do_case "$@"

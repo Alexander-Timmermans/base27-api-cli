@@ -188,7 +188,6 @@ function do_endpoint {
     response=$(curl --silent --write-out "HTTPSTATUS:%{http_code}" --location "$url" \
         "${headers[@]}" "${data_option[@]}" "${curl_method_args[@]}")
 
-
     #http_status=$(echo "$response" | sed -e 's/.*HTTPSTATUS://')
     # rewrite without sed
     http_status="${response##*HTTPSTATUS:}"
@@ -231,7 +230,7 @@ function do_endpoint {
                 echo "Not a valid API response"
             else
                 if [[ ! -z $filter ]]; then
-                    if ! $flag_filter_query; then
+                    if $flag_filter_query; then
                         if [[ "$filter" == *"[]"* ]]; then
                             echo "$body_content" | jq -r "$filter"
                         else
@@ -319,7 +318,6 @@ function do_http {
         query_params+=("$arg")
     done
 
-    echo "$method $endpoint:"
     do_endpoint "$method" "$endpoint" "${query_params[@]}"
     exit 0
 }
@@ -465,28 +463,32 @@ function do_case {
             if [[ -z "$f1" ]]; then
                 print_format "$(print_sub "--get" "<endpoint>" "[key=value ...]")" "GET an endpoint" "JSON"
             else
-                do_http "GET" "$2" "$@"
+                shift  
+                do_http "GET" "$@"
             fi
             ;&
         --post | "")
             if [[ -z "$f1" ]]; then
                 print_format "$(print_sub "--post" "<endpoint>" "[key=value ...]")" "POST to an endpoint" "JSON"
             else
-                do_http "POST" "$2" "$@"
+                shift
+                do_http "POST" "$@"
             fi
             ;&
         --put | "")
             if [[ -z "$f1" ]]; then
                 print_format "$(print_sub "--put" "<endpoint>" "[key=value ...]")" "PUT to an endpoint" "JSON"
             else
-                do_http "PUT" "$2" "$@"
+                shift
+                do_http "PUT" "$@"
             fi
             ;&
         --delete | "")
             if [[ -z "$f1" ]]; then
                 print_format "$(print_sub "--delete" "<endpoint>" "[key=value ...]")" "DELETE to an endpoint" "JSON"
             else
-                do_http "DELETE" "$2" "$@"
+                shift
+                do_http "DELETE" "$@"
             fi
             ;;
         *)

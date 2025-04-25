@@ -255,10 +255,14 @@ function do_endpoint {
             else
                 if [[ -n $filter ]]; then
                     if $flag_filter_query; then
-                        if [[ "$filter" == *"[]"* ]]; then
-                            echo "$body_content" | jq -r "$filter"
+                        if [[ "$filter" == *"&"* ]]; then
+                            echo "$body_content" | jq '.' || echo "$body_content"
                         else
-                            echo "$body_content" | jq -r ".[].$filter"
+                            if [[ "$filter" == *"[]"* ]]; then
+                                echo "$body_content" | jq -r "$filter"
+                            else
+                                echo "$body_content" | jq -r ".[].$filter"
+                            fi
                         fi
                     else
                         echo "$body_content" | jq '.' || echo "$body_content"

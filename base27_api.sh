@@ -259,13 +259,15 @@ function do_endpoint {
                             echo "$body_content" | jq '.' || echo "$body_content"
                         else
                             if [[ "$filter" == *"[]"* ]]; then
+                                
                                 echo "$body_content" | jq -r "$filter"
                             else
                                 echo "$body_content" | jq -r ".[].$filter"
                             fi
                         fi
                     else
-                        echo "$body_content" | jq '.' || echo "$body_content"
+                        #echo "$body_content" | jq '.' || echo "$body_content"
+                        echo "$body_content" | jq -r ".[].$filter"
                     fi
                 else
                     echo "$body_content" | jq '.' || echo "$body_content"
@@ -317,8 +319,8 @@ endpoints=(
 
 
 print_format() {
-    local width1="41"
-    local width2="29"
+    local width1="42"
+    local width2="30"
     printf "  %-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
 

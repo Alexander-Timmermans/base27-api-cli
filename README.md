@@ -26,5 +26,43 @@ Usage: ./base27_api.sh [options]
   --list-services                           List all services             text
   --list-userinfo                           List userinfo                 text
 ```
-e.g. `./base27_api.sh --get metadata/entities id=123`
+
+e.g.:
+
+```
+./base27_api.sh --list-metadata-entities | grep -i datasubjectrequest
+base$DataSubjectRequestType
+base$DataSubjectRequest
+base$DataSubjectRequestStatus
+
+./base27_api.sh -e 'base$DataSubjectRequest'
+token is still valid..
+GET entities/base$DataSubjectRequest:
+HTTP status: 200
+
+[
+  {
+    "_entityName": "base$DataSubjectRequest",
+    "_instanceName": "1 - ",
+    "id": "<uuid>",
+    "version": 1,
+    "changed": false,
+    "nr": 1,
+    "applyWorkflow": true,
+    "status": "New"
+  }
+]
+
+./base27_api.sh --get metadata/entities id=123 | head
+token is still valid..
+GET metadata/entities:
+HTTP status: 200
+
+[
+  {
+    "entityName": "base$Likelihood",
+    "ancestor": "base$RiskModelAttribute",
+    "properties": [
+      {
+```
 

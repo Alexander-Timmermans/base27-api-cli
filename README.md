@@ -36,10 +36,7 @@ base$DataSubjectRequest
 base$DataSubjectRequestStatus
 
 ./base27_api.sh -e 'base$DataSubjectRequest'
-token is still valid..
 GET entities/base$DataSubjectRequest:
-HTTP status: 200
-
 [
   {
     "_entityName": "base$DataSubjectRequest",
@@ -53,11 +50,8 @@ HTTP status: 200
   }
 ]
 
-./base27_api.sh --get metadata/entities id=123 | head
-token is still valid..
-GET metadata/entities:
-HTTP status: 200
-
+./base27_api.sh -g metadata/entities id=123 | head
+GET metadata/entities, id=123:
 [
   {
     "entityName": "base$Likelihood",

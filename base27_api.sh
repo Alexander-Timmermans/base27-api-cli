@@ -101,11 +101,10 @@ function check_token_validity {
     local expiration_time=$(jq -r '.expiration_time' "$expiration_file")
 
     if (( current_time > expiration_time )); then
-        echo "token has expired, fetching a new one.."
+        # token has expired, fetching a new one
         get_api_token
-    else
-        echo "token is still valid.."
     fi
+    # token is still valid
 }
 
 function get_access_token {
@@ -118,13 +117,19 @@ function do_init {
     do_config
     flag_form_encoding=false
     if [ ! -f "$expiration_file" ]; then
-        echo "no token file found, fetching new token..."
+        # no token file found, fetching new token
         get_api_token
     else
         check_token_validity
     fi
 
     access_token=$(get_access_token)
+}
+
+function print_status_exit {
+    echo "HTTP status: $http_status"
+    echo "$1"
+    exit 1
 }
 
 function do_endpoint {
@@ -221,33 +226,30 @@ function do_endpoint {
     # rewrite without sed
     body_content="${response%HTTPSTATUS:*}"
 
-    echo "${method} ${endpoint}:"
-    echo "HTTP status: $http_status"
-    echo ""
+    if [[ -n "$@" ]]; then
+        echo "${method} ${endpoint}, $@:"
+    else
+        echo "${method} ${endpoint}:"
+    fi
+
     case $http_status in
         400)
-            echo "Error: bad request"
-            exit 1
+            print_status_exit "Error: bad request"
             ;;
         401)
-            echo "Error: invalid access"
-            exit 1
+            print_status_exit "Error: invalid access"
             ;;
         403)
-            echo "Error: forbidden"
-            exit 1
+            print_status_exit "Error: forbidden"
             ;;
         404)
-            echo "Error: not found"
-            exit 1
+            print_status_exit "Error: not found"
             ;;
         405)
-            echo "Error: method '$method' not allowed on '$2'"
-            exit 1
+            print_status_exit "Error: method '$method' not allowed on '$2'"
             ;;
         500)
-            echo "Error: internal server error, contact your system administrator"
-            exit 1
+            print_status_exit "Error: internal server error, contact your system administrator"
             ;;
         200)
             if echo "$response" | grep -q 'VAADI'; then

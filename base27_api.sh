@@ -27,7 +27,7 @@ function requires() {
     for i in "$@"; do
         if ! hash "$i" &>/dev/null; then
             echo "Error: this program requires '$i', please install it"
-            quit
+            exit 1
         fi
     done
 }
@@ -134,7 +134,18 @@ function print_status_exit {
 
 function do_endpoint {
     do_init
-    local method="${1^^}"
+
+    case "$1" in
+        GET_JSON_TEMPLATE)
+            method_extra="JSON_TEMPLATE"
+            local method="GET"
+            ;;
+        *)
+            method_extra=""
+            local method="${1^^}"
+            ;;
+    esac
+
     local endpoint="$2"
     shift 2
 
@@ -255,24 +266,50 @@ function do_endpoint {
             if echo "$response" | grep -q 'VAADI'; then
                 echo "Not a valid API response"
             else
-                if [[ -n $filter ]]; then
-                    if $flag_filter_query; then
-                        if [[ "$filter" == *"&"* ]]; then
-                            echo "$body_content" | jq '.' || echo "$body_content"
+                if [[ "$method_extra" == "JSON_TEMPLATE" ]]; then
+                    echo "$body_content" | jq ".[] | select(.\"$1\" == \"$2\") |
+                        {
+                            (.\"$1\"): (
+                                (.properties // []) |
+                                reduce .[] as \$prop ({};
+                                    if (\$prop.mandatory == true and \$prop.readOnly == false)
+                                    then .[\$prop.name] = (
+                                        if \$prop.name == \"version\" then 1
+                                        elif \$prop.type == \"int\" then 0
+                                        elif \$prop.type == \"boolean\" then false
+                                        else \"\" end
+                                    )
+                                    else . end
+                                )
+                            )
+                        }
+                    "
+                else
+                    if [[ -n $filter ]]; then
+                        if $flag_filter_query; then
+                            if [[ "$filter" == *"&"* ]]; then
+                                echo "$body_content" | jq '.' || echo "$body_content"
+                            else
+                                if [[ "$filter" == *"[]"* ]]; then
+                                    echo "$body_content" | jq -r "$filter"
+                                else
+                                    echo "$body_content" | jq -r ".[].$filter"
+                                fi
+                            fi
                         else
-                            if [[ "$filter" == *"[]"* ]]; then
-                                
-                                echo "$body_content" | jq -r "$filter"
+                            if [[ "$filter" == *"$"* ]]; then
+                                # this is always about an entity
+
+                                echo "$body_content" | jq ".[] | select(.entityName == \"$filter\")"
+                                #echo "$body_content" | jq ".[] | select(.entityName == \"$filter\")" \
+                                #    | jq '.properties[] | select(.mandatory == true) '
                             else
                                 echo "$body_content" | jq -r ".[].$filter"
                             fi
                         fi
                     else
-                        #echo "$body_content" | jq '.' || echo "$body_content"
-                        echo "$body_content" | jq -r ".[].$filter"
+                        echo "$body_content" | jq '.' || echo "$body_content"
                     fi
-                else
-                    echo "$body_content" | jq '.' || echo "$body_content"
                 fi
             fi
             ;;
@@ -321,13 +358,13 @@ endpoints=(
 
 
 print_format() {
-    local width1="42"
-    local width2="30"
+    local width1="50"
+    local width2="35"
     printf "  %-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
 
 print_sub() {
-    local width1="14"
+    local width1="21"
     local width2="10"
     printf "%-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
@@ -375,79 +412,9 @@ function do_case {
         --use-form-encoding | "")
             if [[ -z "$f1" ]]; then 
                 print_format "-u" "Use form encoding" ""
-                echo ""
+                echo 
             else
                 flag_form_encoding=true
-            fi
-            ;&
-        -g | --get | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-g | --get" "<endpoint>" "[key=value ...]")" "GET an endpoint" "JSON"
-            else
-                shift  
-                do_http "GET" "$@"
-            fi
-            ;&
-        -p | --post | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-p | --post" "<endpoint>" "[key=value ...]")" "POST to an endpoint" "JSON"
-            else
-                shift
-                do_http "POST" "$@"
-            fi
-            ;&
-        -t | --put | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-t | --put" "<endpoint>" "[key=value ...]")" "PUT to an endpoint" "JSON"
-            else
-                shift
-                do_http "PUT" "$@"
-            fi
-            ;&
-        -d | --delete | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-d | --delete" "<endpoint>" "[key=value ...]")" "DELETE to an endpoint" "JSON"
-                echo ""
-            else
-                shift
-                do_http "DELETE" "$@"
-            fi
-            ;&
-        -e | --entity | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-e | --entity" "'<name>'")" "List contents of entity name" "JSON"
-            else
-                if [[ -z "$2" ]]; then
-                    echo "Error, --entity requires an additional argument"
-                    exit 1
-                fi
-                do_endpoint "GET" "entities/${2}"
-                exit
-            fi
-            ;&
-        -s | --service | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-s | --service" "'<name>'")" "List contents of service name" "JSON"
-            else
-                if [[ -z "$2" ]]; then
-                    echo "Error: requires a name"
-                    exit 1
-                fi
-                do_endpoint "GET" "services/${2}"
-                exit
-            fi
-            ;&
-        -f | --file | "")
-            if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-f | --file" "'<id>'")" "List contents of file id" "JSON"
-                echo ""
-            else
-                if [[ -z "$2" ]]; then
-                    echo "Error, --file requires an additional argument"
-                    exit 1
-                fi
-                do_endpoint "GET" "files/${2}"
-                exit
             fi
             ;&
         --list-endpoints | "")
@@ -503,18 +470,126 @@ function do_case {
         --list-services | "")
             if [[ -z "$f1" ]]; then
                 print_format "--list-services" "List all services" "text"
+                echo
             else
                 do_endpoint "GET" "services" "name"
                 exit
             fi
             ;&
-        --list-userinfo | "")
+        # does not work properly in Base27?
+        #--list-userinfo | "")
+        #    if [[ -z "$f1" ]]; then
+        #        print_format "--list-userinfo" "List userinfo" "text"
+        #        echo 
+        #    else
+        #        do_endpoint "GET" "userInfo"            
+        #        exit
+        #    fi
+        #    ;&
+        -je | --json-template-entity | "")
             if [[ -z "$f1" ]]; then
-                print_format "--list-userinfo" "List userinfo" "text"
-                echo ""
+                print_format "$(print_sub "-je | --json-entity" "'<name>'")" "Derive JSON template for entity" "JSON"
             else
-                do_endpoint "GET" "userInfo"            
+                if [[ -z "$2" ]]; then
+                    echo "Error: --json-template requires an <entity>"
+                    quit 1
+                fi
+                do_endpoint "GET_JSON_TEMPLATE" "metadata/entities" "entityName" "$2"
                 exit
+            fi
+            ;&
+        -jn | --json-template-enum | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-jn | --json-enum" "'<name>'")" "Derive JSON template for enum" "JSON"
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error: --json-template requires an <enum>"
+                    quit 1
+                fi
+                do_endpoint "GET_JSON_TEMPLATE" "metadata/enums" "name" "$2"
+                exit
+            fi
+            ;&
+        -jd | --json-template-datatype | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-jd | --json-datatype" "'<name>'")" "Derive JSON template for datatype" "JSON"
+                echo 
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error: --json-template requires an <datatype>"
+                    quit 1
+                fi
+                do_endpoint "GET_JSON_TEMPLATE" "metadata/datatypes" "name" "$2"
+                exit
+            fi
+            ;&
+        -e | --entity | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-e | --entity" "'<name>'")" "Inspect an entity name" "JSON"
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error, --entity requires an additional argument"
+                    exit 1
+                fi
+                do_endpoint "GET" "entities/${2}"
+                exit
+            fi
+            ;&
+        -s | --service | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-s | --service" "'<name>'")" "Inspect a service name" "JSON"
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error: requires a name"
+                    exit 1
+                fi
+                do_endpoint "GET" "services/${2}"
+                exit
+            fi
+            ;&
+        -f | --file | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-f | --file" "'<id>'")" "Inspect a file id" "JSON"
+                echo 
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error, --file requires an additional argument"
+                    exit 1
+                fi
+                do_endpoint "GET" "files/${2}"
+                exit
+            fi
+            ;&
+        -g | --get | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-g | --get" "<endpoint>" "[key=value ...]")" "GET an endpoint" "JSON"
+            else
+                shift  
+                do_http "GET" "$@"
+            fi
+            ;&
+        -p | --post | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-p | --post" "<endpoint>" "[key=value ...]")" "POST to an endpoint" "JSON"
+            else
+                shift
+                do_http "POST" "$@"
+            fi
+            ;&
+        -t | --put | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-t | --put" "<endpoint>" "[key=value ...]")" "PUT to an endpoint" "JSON"
+            else
+                shift
+                do_http "PUT" "$@"
+            fi
+            ;&
+        -d | --delete | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-d | --delete" "<endpoint>" "[key=value ...]")" "DELETE to an endpoint" "JSON"
+            else
+                shift
+                do_http "DELETE" "$@"
             fi
             ;;
         *)

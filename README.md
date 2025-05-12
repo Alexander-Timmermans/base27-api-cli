@@ -23,6 +23,10 @@ Usage: ./base27_api.sh [options]
   -jew | --json-entity-writeable '<name>'                    Generate a writable entity template   JSON
   -jef | --json-entity-full      '<name>'                    Generate a full entity template       JSON
 
+  -e | --entity                  '<name>'                    Inspect an entity name                JSON
+  -s | --service                 '<name>'                    Inspect a service name                JSON
+  -f | --file                    '<id>'                      Inspect a file id                     JSON
+
   -g | --get                     <endpoint> [key=value ...]  GET an endpoint                       JSON
   -p | --post                    <endpoint> [key=value ...]  POST to an endpoint                   JSON
   -t | --put                     <endpoint> [key=value ...]  PUT to an endpoint                    JSON

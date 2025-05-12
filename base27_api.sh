@@ -92,8 +92,6 @@ function get_api_token {
 
     echo "$response" | jq --argjson timestamp "$timestamp" --argjson expiration_time "$expiration_time" \
         '. + {timestamp: $timestamp, expiration_time: $expiration_time}' > "$expiration_file"
-
-    echo "token and expiration saved to $expiration_file"
 }
 
 function check_token_validity {
@@ -104,7 +102,7 @@ function check_token_validity {
         # token has expired, fetching a new one
         get_api_token
     fi
-    # token is still valid
+    # "token is still valid.."
 }
 
 function get_access_token {
@@ -127,6 +125,12 @@ function do_init {
 }
 
 function print_status_exit {
+    if [[ -n "$2" ]]; then
+        echo "${method} ${endpoint}, $2"
+    else
+        echo "${method} ${endpoint}"
+    fi
+
     echo "HTTP status: $http_status"
     echo "$1"
     exit 1
@@ -135,14 +139,22 @@ function print_status_exit {
 function do_endpoint {
     do_init
 
+    local method
+    local method_full
+    method_full="$1"
     case "$1" in
-        GET_JSON_TEMPLATE)
-            method_extra="JSON_TEMPLATE"
-            local method="GET"
+        GET_MANDATORY)
+            method="GET"
+            ;;
+        GET_WRITEABLE)
+            method="GET"
+            ;;
+        GET_FULL)
+            method="GET"
             ;;
         *)
-            method_extra=""
-            local method="${1^^}"
+            method="${1^^}"
+            method_full=""
             ;;
     esac
 
@@ -237,53 +249,115 @@ function do_endpoint {
     # rewrite without sed
     body_content="${response%HTTPSTATUS:*}"
 
-    if [[ -n "$@" ]]; then
-        echo "${method} ${endpoint}, $@:"
-    else
-        echo "${method} ${endpoint}:"
-    fi
-
     case $http_status in
         400)
-            print_status_exit "Error: bad request"
+            print_status_exit "Error: bad request" "$@"
             ;;
         401)
-            print_status_exit "Error: invalid access"
+            print_status_exit "Error: invalid access" "$@"
             ;;
         403)
-            print_status_exit "Error: forbidden"
+            print_status_exit "Error: forbidden" "$@"
             ;;
         404)
-            print_status_exit "Error: not found"
+            print_status_exit "Error: not found" "$@"
             ;;
         405)
-            print_status_exit "Error: method '$method' not allowed on '$2'"
+            print_status_exit "Error: method '$method' not allowed on '$2'" "$@"
             ;;
         500)
-            print_status_exit "Error: internal server error, contact your system administrator"
+            print_status_exit "Error: internal server error, contact your system administrator" "$@"
             ;;
         200)
             if echo "$response" | grep -q 'VAADI'; then
                 echo "Not a valid API response"
             else
-                if [[ "$method_extra" == "JSON_TEMPLATE" ]]; then
-                    echo "$body_content" | jq ".[] | select(.\"$1\" == \"$2\") |
-                        {
-                            (.\"$1\"): (
-                                (.properties // []) |
-                                reduce .[] as \$prop ({};
-                                    if (\$prop.mandatory == true and \$prop.readOnly == false)
-                                    then .[\$prop.name] = (
-                                        if \$prop.name == \"version\" then 1
-                                        elif \$prop.type == \"int\" then 0
-                                        elif \$prop.type == \"boolean\" then false
-                                        else \"\" end
-                                    )
-                                    else . end
-                                )
-                            )
-                        }
-                    "
+                if [[ "$endpoint" == "metadata/entities" && "$method_full" == "GET_MANDATORY" ]]; then
+                    # Mandatory + not ReadOnly → Must be in POST request.
+                    # 1. Must include fields that are:
+                    #    - mandatory == true
+                    #    - readOnly == false
+
+                    # Not mandatory + not ReadOnly → Optional in POST.
+                    # 2. Should include optional, non-readOnly fields, but ideally prefilled ("" or null) or commented in output as optional.
+
+                    # ReadOnly → Do not send. These are likely system-managed (id, version, timestamps, etc.).
+                    # 3. Exclude readOnly fields — they are system-managed (e.g., id, version, timestamps, audit fields).
+
+                    # Associations or Compositions → You might need to provide a related entity or a reference (like an id or nested object).
+                    # 4. Handle associations/compositions:
+                    #    - If it's a reference (MANY_TO_ONE, ONE_TO_MANY), it often expects an object with at least an id.
+                    #    - Optional: provide examples or stubs for these.
+                    
+                    # No default value → Even optional fields may break functionality if left blank — these are the "functional musts" you discovered via the UI.
+                    # 5. Fields without default values (and not mandatory) might still be required for business logic — but only detectable by POST testing or UI behavior.
+
+                    echo "$body_content" | jq -n --argjson props "$(
+                      ./base27_api.sh -g metadata/entities/'base$DataSubjectRequest' \
+                      | jq '.properties // [] | map(select(.mandatory == true and .readOnly == false))'
+                    )" '
+                    reduce $props[] as $prop ({}; 
+                      .[$prop.name] = 
+                        if $prop.name == "version" then 1
+                        elif $prop.type == "int" then 0
+                        elif $prop.type == "boolean" then false
+                        elif $prop.attributeType == "ASSOCIATION" or $prop.attributeType == "COMPOSITION" then { id: "" }
+                        else "" 
+                        end
+                    )'
+                elif [[ "$endpoint" == "metadata/entities" && "$method_full" == "GET_WRITEABLE" ]]; then
+                    echo "$body_content" | jq -r '
+                      .[] | select(.entityName == "'$2'") | 
+                      {
+                        (.entityName): (
+                          reduce (.properties // [])[] as $prop ({}; 
+                            # Step 1: Mandatory and not ReadOnly (always include in POST with default values)
+                            if ($prop.mandatory == true and $prop.readOnly == false) then
+                              .[$prop.name] = (
+                                if $prop.name == "version" then 1
+                                elif $prop.type == "int" then 0
+                                elif $prop.type == "boolean" then false
+                                elif $prop.type == "string" then ""
+                                else null end
+                              )
+                            # Step 2: Not mandatory, not ReadOnly (optional, with default values or commented)
+                            elif ($prop.mandatory == false and $prop.readOnly == false) then
+                              .[$prop.name] = (
+                                if $prop.name == "version" then 1
+                                elif $prop.type == "int" then 0
+                                elif $prop.type == "boolean" then false
+                                elif $prop.type == "string" then ""
+                                else null end
+                              )
+                            # Step 3: ReadOnly fields (do not include in POST)
+                            else . end
+                          )
+                        )
+                      }
+                    '
+                elif [[ "$endpoint" == "metadata/entities" && "$method_full" == "GET_FULL" ]]; then
+                    echo "$body_content" | jq -r '
+                      .[] | select(.entityName == "'$2'") |
+                      {
+                        (.entityName): (
+                          reduce (.properties // [])[] as $prop ({};
+                            if ($prop.readOnly != true) then
+                              .[$prop.name] = (
+                                if $prop.attributeType == "ASSOCIATION" then
+                                  if $prop.cardinality == "MANY_TO_ONE" then { "id": "" }
+                                  elif $prop.cardinality == "MANY_TO_MANY" or $prop.cardinality == "ONE_TO_MANY" then [ { "id": "" } ]
+                                  else null end
+                                elif $prop.name == "version" then 1
+                                elif $prop.type == "int" then 0
+                                elif $prop.type == "boolean" then false
+                                elif $prop.type == "string" then ""
+                                else null end
+                              )
+                            else . end
+                          )
+                        )
+                      }
+                    '
                 else
                     if [[ -n $filter ]]; then
                         if $flag_filter_query; then
@@ -298,11 +372,12 @@ function do_endpoint {
                             fi
                         else
                             if [[ "$filter" == *"$"* ]]; then
-                                # this is always about an entity
-
-                                echo "$body_content" | jq ".[] | select(.entityName == \"$filter\")"
-                                #echo "$body_content" | jq ".[] | select(.entityName == \"$filter\")" \
-                                #    | jq '.properties[] | select(.mandatory == true) '
+                                # this should always be about an entity
+                                if [[ "$endpoint" == "metadata/entities" ]]; then
+                                    echo "$body_content" | jq ".[] | select(.entityName == \"$filter\")"
+                                else
+                                    echo "$body_content" | jq ".[] | select(._entityName == \"$filter\")"
+                                fi
                             else
                                 echo "$body_content" | jq -r ".[].$filter"
                             fi
@@ -358,13 +433,13 @@ endpoints=(
 
 
 print_format() {
-    local width1="50"
-    local width2="35"
+    local width1="58"
+    local width2="37"
     printf "  %-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
 
 print_sub() {
-    local width1="21"
+    local width1="30"
     local width2="10"
     printf "%-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
@@ -486,40 +561,65 @@ function do_case {
         #        exit
         #    fi
         #    ;&
-        -je | --json-template-entity | "")
+        -me | --get-entity | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-je | --json-entity" "'<name>'")" "Derive JSON template for entity" "JSON"
+                print_format "$(print_sub "-me | --get-entity" "'<name>'")" "GET metadata of an entity" "JSON"
             else
                 if [[ -z "$2" ]]; then
-                    echo "Error: --json-template requires an <entity>"
-                    quit 1
+                    echo "Error, --entity requires an additional argument"
+                    exit 1
                 fi
-                do_endpoint "GET_JSON_TEMPLATE" "metadata/entities" "entityName" "$2"
+                do_endpoint "GET" "metadata/entities/${2}"
                 exit
             fi
             ;&
-        -jn | --json-template-enum | "")
+        -mn | --get-enum | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-jn | --json-enum" "'<name>'")" "Derive JSON template for enum" "JSON"
+                print_format "$(print_sub "-mn | --get-enum" "'<name>'")" "GET metadata of an enum" "JSON"
+                echo
             else
                 if [[ -z "$2" ]]; then
-                    echo "Error: --json-template requires an <enum>"
-                    quit 1
+                    echo "Error: requires a name"
+                    exit 1
                 fi
-                do_endpoint "GET_JSON_TEMPLATE" "metadata/enums" "name" "$2"
+                do_endpoint "GET" "metadata/enums/${2}"
                 exit
             fi
             ;&
-        -jd | --json-template-datatype | "")
+        -jem | --json-entity-mandatory | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-jd | --json-datatype" "'<name>'")" "Derive JSON template for datatype" "JSON"
-                echo 
+                print_format "$(print_sub "-jem | --json-entity-mandatory" "'<name>'")" "Generate a mandatory entity template" "JSON"
             else
                 if [[ -z "$2" ]]; then
-                    echo "Error: --json-template requires an <datatype>"
-                    quit 1
+                    echo "Error: requires an <entity>"
+                    exit 1
                 fi
-                do_endpoint "GET_JSON_TEMPLATE" "metadata/datatypes" "name" "$2"
+                do_endpoint "GET_MANDATORY" "metadata/entities" "entityName" "$2"
+                exit
+            fi
+            ;&
+        -jew | --json-entity-writeable | "")
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-jew | --json-entity-writeable" "'<name>'")" "Generate a writable entity template" "JSON"
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error: requires an <entity>"
+                    exit 1
+                fi
+                do_endpoint "GET_WRITEABLE" "metadata/entities" "entityName" "$2"
+                exit
+            fi
+            ;&
+        -jef | --json-entity-full)
+            if [[ -z "$f1" ]]; then
+                print_format "$(print_sub "-jef | --json-entity-full" "'<name>'")" "Generate a full entity template" "JSON"
+                echo
+            else
+                if [[ -z "$2" ]]; then
+                    echo "Error: requires an <entity>"
+                    exit 1
+                fi
+                do_endpoint "GET_FULL" "metadata/entities" "entityName" "$2"
                 exit
             fi
             ;&

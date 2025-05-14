@@ -437,13 +437,13 @@ endpoints=(
 
 
 print_format() {
-    local width1="58"
+    local width1="50"
     local width2="37"
     printf "  %-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
 
 print_sub() {
-    local width1="30"
+    local width1="22"
     local width2="10"
     printf "%-${width1}s %-${width2}s %s\n" "$1" "$2" "$3"
 }
@@ -590,9 +590,9 @@ function do_case {
                 exit
             fi
             ;&
-        -jem | --json-entity-mandatory | "")
+        -jm | --json-mandatory | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-jem | --json-entity-mandatory" "'<name>'")" "Generate a mandatory entity template" "JSON"
+                print_format "$(print_sub "-jm | --json-mandatory" "'<name>'")" "Generate a mandatory entity template" "JSON"
             else
                 if [[ -z "$2" ]]; then
                     echo "Error: requires an <entity>"
@@ -602,9 +602,9 @@ function do_case {
                 exit
             fi
             ;&
-        -jew | --json-entity-writeable | "")
+        -jw | --json-writeable | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-jew | --json-entity-writeable" "'<name>'")" "Generate a writable entity template" "JSON"
+                print_format "$(print_sub "-jw | --json-writeable" "'<name>'")" "Generate a writable entity template" "JSON"
             else
                 if [[ -z "$2" ]]; then
                     echo "Error: requires an <entity>"
@@ -614,9 +614,9 @@ function do_case {
                 exit
             fi
             ;&
-        -jef | --json-entity-full)
+        -jf | --json-full)
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-jef | --json-entity-full" "'<name>'")" "Generate a full entity template" "JSON"
+                print_format "$(print_sub "-jf | --json-full" "'<name>'")" "Generate a full entity template" "JSON"
                 echo
             else
                 if [[ -z "$2" ]]; then
@@ -690,7 +690,7 @@ function do_case {
             ;&
         -d | --delete | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-d | --delete" "<endpoint>")" "DELETE to an endpoint" "JSON"
+                print_format "$(print_sub "-d | --delete" "<endpoint>")" "DELETE an endpoint" "JSON"
             else
                 shift
                 do_http "DELETE" "$@"

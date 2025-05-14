@@ -27,10 +27,10 @@ Usage: ./base27_api.sh [options]
   -s | --service                 '<name>'                    Inspect a service name                JSON
   -f | --file                    '<id>'                      Inspect a file id                     JSON
 
-  -g | --get                     <endpoint> [key=value ...]  GET an endpoint                       JSON
+  -g | --get                     <endpoint>                  GET an endpoint                       JSON
   -p | --post                    <endpoint> [key=value ...]  POST to an endpoint                   JSON
   -t | --put                     <endpoint> [key=value ...]  PUT to an endpoint                    JSON
-  -d | --delete                  <endpoint> [key=value ...]  DELETE to an endpoint                 JSON
+  -d | --delete                  <endpoint>                  DELETE to an endpoint                 JSON
 ```
 
 e.g.:
@@ -42,7 +42,20 @@ base$DataSubjectRequest
 base$DataSubjectRequestStatus
 
 ./base27_api.sh -e 'base$DataSubjectRequest'
-GET entities/base$DataSubjectRequest:
+[
+  {
+    "_entityName": "base$DataSubjectRequest",
+    "_instanceName": "1 - ",
+    "id": "<uuid>",
+    "version": 1,
+    "changed": false,
+    "nr": 1,
+    "applyWorkflow": true,
+    "status": "New"
+  }
+]
+
+./base27_api.sh -g entities/'base$DataSubjectRequest'/<uuid>
 [
   {
     "_entityName": "base$DataSubjectRequest",

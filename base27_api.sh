@@ -177,6 +177,10 @@ function do_endpoint {
         flag_filter_query=true
     fi
 
+    # all HTTP request types:
+    # OPTIONS, GET, HEAD, POST, PUT, DELETE, TRACE, CONNECT, PATCH
+    # Base27 only supports GET, POST, PUT, DELETE
+
     # GET and DELETE don’t require a request body
     if [[ "$method" == "GET" || "$method" == "DELETE" ]]; then
         if $flag_filter_query; then
@@ -193,7 +197,7 @@ function do_endpoint {
         # else: nothing to do
         fi
     else
-        # POST and PUT should offer a request body, and possible Form-encoding
+        # POST, PUT (PATCH) should offer a request body, and possible form-encoding
         if [[ "$method" == "POST" || "$method" == "PUT" ]]; then
             if $flag_form_encoding; then
                 headers+=(-H "Content-Type: application/x-www-form-urlencoded")
@@ -662,7 +666,7 @@ function do_case {
             ;&
         -g | --get | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-g | --get" "<endpoint>" "[key=value ...]")" "GET an endpoint" "JSON"
+                print_format "$(print_sub "-g | --get" "<endpoint>")" "GET an endpoint" "JSON"
             else
                 shift  
                 do_http "GET" "$@"
@@ -686,7 +690,7 @@ function do_case {
             ;&
         -d | --delete | "")
             if [[ -z "$f1" ]]; then
-                print_format "$(print_sub "-d | --delete" "<endpoint>" "[key=value ...]")" "DELETE to an endpoint" "JSON"
+                print_format "$(print_sub "-d | --delete" "<endpoint>")" "DELETE to an endpoint" "JSON"
             else
                 shift
                 do_http "DELETE" "$@"
